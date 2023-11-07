@@ -1,25 +1,22 @@
 import 'package:flutter/material.dart';
-import 'spotify_service.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:spotify_project/spotify_service.dart';
 import 'detail_screen.dart';
+import 'song_bloc.dart'; // Asegúrate de tener este archivo
+import 'song_event.dart'; // y este
+import 'song_state.dart'; // y también este
 
-class SongScreen extends StatefulWidget {
+class SongScreen extends StatelessWidget {
   @override
-  _SongScreenState createState() => _SongScreenState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => SongBloc(SpotifyService()),
+      child: SongView(),
+    );
+  }
 }
 
-class _SongScreenState extends State<SongScreen> {
-  final SpotifyService _spotifyService = SpotifyService();
-  List songs = [];
-
-  _searchSongs(String query) async {
-    final results = await _spotifyService.searchSongs(query);
-    if (results.isNotEmpty) {
-      setState(() {
-        songs = results;
-      });
-    }
-  }
-
+class SongView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -32,7 +29,9 @@ class _SongScreenState extends State<SongScreen> {
               child: ListTile(
                 leading: Icon(Icons.search),
                 title: TextField(
-                  onChanged: _searchSongs,
+                  onChanged: (query) {
+                    BlocProvider.of<SongBloc>(context).add(SearchSongsEvent(query));
+                  },
                   decoration: InputDecoration(
                     hintText: 'Buscar Canción',
                     border: InputBorder.none,
@@ -42,12 +41,17 @@ class _SongScreenState extends State<SongScreen> {
             ),
             SizedBox(height: 10),
             Expanded(
-              child: songs.isEmpty
-                  ? Center(child: Text('Busca canciones para ver resultados.'))
-                  : ListView.builder(
-                      itemCount: songs.length,
+              child: BlocBuilder<SongBloc, SongState>(
+                builder: (context, state) {
+                  if (state is SongsInitial) {
+                    return Center(child: Text('Busca canciones para ver resultados.'));
+                  } else if (state is SongsLoading) {
+                    return Center(child: CircularProgressIndicator());
+                  } else if (state is SongsLoaded) {
+                    return ListView.builder(
+                      itemCount: state.songs.length,
                       itemBuilder: (context, index) {
-                        var song = songs[index];
+                        var song = state.songs[index];
                         return ListTile(
                           title: Text(song['name']),
                           subtitle: Text(song['artists'][0]['name']),
@@ -68,7 +72,13 @@ class _SongScreenState extends State<SongScreen> {
                           },
                         );
                       },
-                    ),
+                    );
+                  } else if (state is SongsError) {
+                    return Center(child: Text(state.message));
+                  }
+                  return Container(); 
+                },
+              ),
             ),
           ],
         ),
